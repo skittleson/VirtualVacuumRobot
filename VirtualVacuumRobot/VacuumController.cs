@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace VirtualVacuumRobot {
@@ -7,6 +8,7 @@ namespace VirtualVacuumRobot {
         private readonly Random _rnd;
         private readonly int _timeInterval;
         private readonly ILogger _logger;
+        private readonly QueueBroker _queueBroker;
         private bool _runtimeLoop = true;
         private bool _byMinute, _cleaningLoop, _chargingLoop;
 
@@ -23,11 +25,24 @@ namespace VirtualVacuumRobot {
             SHUTDOWN
         }
 
-        public VacuumController(ILogger logger, bool byMinute = false) {
+        public VacuumController(ILogger logger, QueueBroker queueBroker, bool byMinute = false) {
             _rnd = new Random();
             _byMinute = byMinute;
             _timeInterval = byMinute ? 1000 : 0;
             _logger = logger;
+            _queueBroker = queueBroker;
+            if (_queueBroker != null) {
+                _queueBroker.OnEvent = FromQueueBroker;
+                _queueBroker.StartListening();
+            }
+        }
+
+        private void FromQueueBroker(IList<string> messages) {
+            foreach (var action in messages) {
+                if (action == "START") {
+                    StartVaccum();
+                }
+            }
         }
 
         public void RuntimeLoop(bool startCleaning = true) {

@@ -5,14 +5,18 @@ using System;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
+using System.Threading;
 
 namespace VirtualVacuumRobot {
 
     public class QueueBroker : IDisposable {
         private const string QUEUE_NAME = "VirtualVacuumBotQueue";
         private readonly AmazonSQSClient _client;
+        private bool _running;
+
         private string _queueUrl { get; set; }
         private List<QueueMessageCacheModel> _cachedMessageIds { get; set; }
+        public Action<IList<string>> OnEvent { get; set; }
 
         public QueueBroker() {
             _cachedMessageIds = new List<QueueMessageCacheModel>();
@@ -35,31 +39,36 @@ namespace VirtualVacuumRobot {
             }
         }
 
-        public void SubscribeToSnsTopic() {
-
+        public void StartListening() {
+            var thread = new Thread(new ThreadStart(ReceiveMessages));
+            thread.Start();
         }
 
-        public void UnsubscribeToSnsTopic() {
-
+        public void StopListening() {
+            _running = false;
         }
 
-        public IEnumerable<string> ReceiveMessages() {
-            var response = _client.ReceiveMessageAsync(_queueUrl).Result;
-            var messages = response.Messages.Select(x => {
-                var message = "";
-                if (x.Body.StartsWith('{')) {
-                    dynamic jsonObj = JsonConvert.DeserializeObject<ExpandoObject>(x.Body);
-                    message = jsonObj.Message;
-                } else {
-                    message = x.Body;
+        public void ReceiveMessages() {
+            while (_running) {
+                var response = _client.ReceiveMessageAsync(_queueUrl).Result;
+                var messages = response.Messages.Select(x => {
+                    var message = "";
+                    if (x.Body.StartsWith('{')) {
+                        dynamic jsonObj = JsonConvert.DeserializeObject<ExpandoObject>(x.Body);
+                        message = jsonObj.Message;
+                    } else {
+                        message = x.Body;
+                    }
+                    return new QueueMessageCacheModel(x.MessageId, message);
+                }).ToList();
+                var result = messages.Where(p => !_cachedMessageIds.Any(p2 => p2.MessageId == p.MessageId)).ToList();
+                if (result.Count > 0) {
+                    _cachedMessageIds.AddRange(result);
                 }
-                return new QueueMessageCacheModel(x.MessageId, message);
-            }).ToList();
-            var result = messages.Where(p => !_cachedMessageIds.Any(p2 => p2.MessageId == p.MessageId)).ToList();
-            if (result.Count > 0) {
-                _cachedMessageIds.AddRange(result);
+                var messageBodies = result.Select(x => x.Message).ToList();
+                OnEvent?.Invoke(messageBodies);
+                Thread.Sleep(3 * 1000);
             }
-            return result.Select(x => x.Message).ToList();
         }
 
         public void Dispose() {

@@ -11,7 +11,7 @@ namespace VirtualVacuumRobot.Tests {
         [Fact]
         public void Can_start() {
             // Arrange
-            var vacuum = new VacuumController(null, false);
+            var vacuum = new VacuumController(null,null,false);
 
             // Assert
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
@@ -28,7 +28,7 @@ namespace VirtualVacuumRobot.Tests {
         [Fact]
         public void Can_be_sent_for_charge_when_cleaning() {
             // Arrange
-            var vacuum = new VacuumController(null, false);
+            var vacuum = new VacuumController(null,null,false);
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 if (eventType == VacuumEvents.CLEANING) {
                     vacuum.ChargeVaccum();
@@ -48,7 +48,7 @@ namespace VirtualVacuumRobot.Tests {
         [Fact]
         public void Will_go_for_charge_if_low_on_power() {
             // Arrange
-            var vacuum = new VacuumController(null, false);
+            var vacuum = new VacuumController(null,null,false);
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 // Assert
                 if (eventType == VacuumEvents.STARTED_CHARGE) {
@@ -65,7 +65,7 @@ namespace VirtualVacuumRobot.Tests {
         public void Can_send_regular_updates_on_cleaning() {
             // Arrange
             var cleanUpdates = new List<VacuumEvents>();
-            var vacuum = new VacuumController(null, false);
+            var vacuum = new VacuumController(null,null,false);
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 if (eventType == VacuumEvents.CLEANING) {
                     cleanUpdates.Add(eventType);
@@ -85,7 +85,7 @@ namespace VirtualVacuumRobot.Tests {
         [Fact]
         public void Can_charge() {
             // Arrange
-            var vacuum = new VacuumController(null, false);
+            var vacuum = new VacuumController(null,null,false);
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 // Assert
                 if (eventType == VacuumEvents.STARTED_CHARGE) {
@@ -101,7 +101,7 @@ namespace VirtualVacuumRobot.Tests {
         [Fact]
         public void After_full_charge_goes_to_sleep() {
             // Arrange
-            var vacuum = new VacuumController(null, false);
+            var vacuum = new VacuumController(null,null,false);
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 // Assert
                 if (eventType == VacuumEvents.SLEEPING) {
@@ -118,7 +118,7 @@ namespace VirtualVacuumRobot.Tests {
         public void Can_get_regular_updates_while_charging() {
             // Arrange
             var updates = new List<VacuumEvents>();
-            var vacuum = new VacuumController(null, false);
+            var vacuum = new VacuumController(null,null,false);
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 if (eventType == VacuumEvents.CHARGING) {
                     updates.Add(eventType);

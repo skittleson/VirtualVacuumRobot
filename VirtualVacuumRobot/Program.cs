@@ -6,9 +6,10 @@ namespace VirtualVacuumRobot {
     public static class Program {
 
         private static void Main(string[] args) {
-            // var vacuum = new VacuumController(new ConsoleLogger(), true);
-            // vacuum.RuntimeLoop();
+            var vacuum = new VacuumController(new ConsoleLogger(), new QueueBroker(), true);
+            vacuum.RuntimeLoop(false);
 
+            /*
             var queue = new QueueBroker();
 
             while (true) {
@@ -16,7 +17,7 @@ namespace VirtualVacuumRobot {
                 foreach (var item in queue.ReceiveMessages()) {
                     Console.Out.WriteLine(item);
                 }
-            }
+            }*/
         }
     }
 }
