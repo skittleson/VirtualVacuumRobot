@@ -12,7 +12,7 @@ namespace VirtualVacuumRobot {
         private bool _runtimeLoop = true;
         private bool _byMinute, _cleaningLoop, _chargingLoop;
 
-        public double PowerPecentage { get; private set; } = 100.00;
+        public double PowerPecentage { get; private set; }
         public Action<VacuumEvents, string> OnEvent { get; set; }
 
         public enum VacuumEvents {
@@ -35,12 +35,15 @@ namespace VirtualVacuumRobot {
                 _queueBroker.OnEvent = FromQueueBroker;
                 _queueBroker.StartListening();
             }
+            PowerPecentage = _rnd.Next(65, 100);
         }
 
         private void FromQueueBroker(IList<string> messages) {
             foreach (var action in messages) {
                 if (action == "START") {
-                    StartVaccum();
+                    _cleaningLoop = true;
+                } else if (action == "CHARGE") {
+                    _chargingLoop = true;
                 }
             }
         }
@@ -48,9 +51,12 @@ namespace VirtualVacuumRobot {
         public void RuntimeLoop(bool startCleaning = true) {
             while (_runtimeLoop) {
                 Thread.Sleep(_timeInterval);
-                if (startCleaning) {
+                if (startCleaning || _cleaningLoop) {
                     startCleaning = false;
                     StartVaccum();
+                }
+                if (_chargingLoop) {
+                    ChargeVaccum();
                 }
                 RaiseMessage(VacuumEvents.SLEEPING);
             }
@@ -68,7 +74,7 @@ namespace VirtualVacuumRobot {
             RaiseMessage(VacuumEvents.STARTED);
             _cleaningLoop = true;
             _chargingLoop = false;
-            while (_runtimeLoop && _cleaningLoop && PowerPecentage > 5) {
+            while (_cleaningLoop && PowerPecentage > 5) {
                 Thread.Sleep(_timeInterval);
                 PowerPecentage -= powerPercentageDeclineRnd;
                 RaiseMessage(VacuumEvents.CLEANING, PowerPecentage.ToString());
@@ -77,7 +83,7 @@ namespace VirtualVacuumRobot {
             RaiseMessage(VacuumEvents.ENDED);
             var isEndingDueToPowerPencentage = PowerPecentage <= 5;
             if (isEndingDueToPowerPencentage) {
-                ChargeVaccum();
+                _chargingLoop = true;
             }
         }
 
@@ -87,7 +93,7 @@ namespace VirtualVacuumRobot {
             _cleaningLoop = false;
             _chargingLoop = true;
             PowerPecentage = 0; // Consider battery power dead.
-            while (_runtimeLoop && _chargingLoop && PowerPecentage < 100) {
+            while (_chargingLoop && PowerPecentage < 100) {
                 Thread.Sleep(_timeInterval);
                 PowerPecentage += chargeRate;
                 RaiseMessage(VacuumEvents.CHARGING, PowerPecentage.ToString());

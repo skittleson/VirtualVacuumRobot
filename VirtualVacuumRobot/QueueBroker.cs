@@ -40,6 +40,7 @@ namespace VirtualVacuumRobot {
         }
 
         public void StartListening() {
+            _running = true;
             var thread = new Thread(new ThreadStart(ReceiveMessages));
             thread.Start();
         }
@@ -67,7 +68,7 @@ namespace VirtualVacuumRobot {
                 }
                 var messageBodies = result.Select(x => x.Message).ToList();
                 OnEvent?.Invoke(messageBodies);
-                Thread.Sleep(3 * 1000);
+                Thread.Sleep(2 * 1000);
             }
         }
 
