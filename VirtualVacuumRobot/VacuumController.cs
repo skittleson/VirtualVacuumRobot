@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using System.Threading.Tasks;
+using Xunit.Sdk;
 
 namespace VirtualVacuumRobot {
 
@@ -15,17 +15,20 @@ namespace VirtualVacuumRobot {
         private bool _runtimeLoop = true;
         private bool _byMinute, _cleaningLoop, _chargingLoop;
         private int _id;
+        private int _runCount;
 
         public double PowerPecentage { get; private set; }
         public Action<VacuumEvents, string> OnEvent { get; set; }
 
         public enum VacuumEvents {
+            DUSTBIN_FULL,
             STARTED,
             ENDED,
             CLEANING,
             CHARGING,
             STARTED_CHARGE,
             SLEEPING,
+            STUCK,
             SHUTDOWN
         }
 
@@ -35,6 +38,7 @@ namespace VirtualVacuumRobot {
             _byMinute = byMinute;
             _timeInterval = byMinute ? 1000 : 0;
             _logger = logger;
+            _runCount = 0;
             _queueBroker = queueBroker;
             _sns = sns;
             if(_queueBroker != null) {
@@ -75,13 +79,22 @@ namespace VirtualVacuumRobot {
             _chargingLoop = false;
         }
 
-        public void StartVacuum() {
+        public void StartVacuum()
+        {
+            _runCount++;
             var powerPercentageDeclineRnd = _rnd.NextDouble() * (1 - .02) + .02;
             RaiseMessage(VacuumEvents.STARTED);
             _cleaningLoop = true;
             _chargingLoop = false;
             while(_cleaningLoop && PowerPecentage > 5) {
                 Thread.Sleep(_timeInterval);
+                if (IsStuck()) {
+                    RaiseMessage(VacuumEvents.STUCK, PowerPecentage.ToString());
+                    break;
+                }
+                if (_runCount > 1) {
+                    RaiseMessage(VacuumEvents.DUSTBIN_FULL, PowerPecentage.ToString());
+                }
                 PowerPecentage -= powerPercentageDeclineRnd;
                 RaiseMessage(VacuumEvents.CLEANING, PowerPecentage.ToString());
             }
@@ -106,6 +119,11 @@ namespace VirtualVacuumRobot {
             }
             _chargingLoop = false;
             RaiseMessage(VacuumEvents.SLEEPING);
+        }
+
+        private Boolean IsStuck() {
+            int rand = _rnd.Next(0, 1000);
+            return rand == 1;
         }
 
         private void RaiseMessage(VacuumEvents eventType, string message = "") {
