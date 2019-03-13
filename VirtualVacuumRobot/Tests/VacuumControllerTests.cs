@@ -22,7 +22,7 @@ namespace VirtualVacuumRobot.Tests {
             };
 
             // Act
-            CompleteTaskWithin(2, vacuum.StartVaccum);
+            CompleteTaskWithin(2, () => vacuum.StartVacuum());
         }
 
         [Fact]
@@ -31,7 +31,7 @@ namespace VirtualVacuumRobot.Tests {
             var vacuum = new VacuumController(null,null,false);
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 if (eventType == VacuumEvents.CLEANING) {
-                    vacuum.ChargeVaccum();
+                    vacuum.ChargeVacuum();
                 }
 
                 // Assert
@@ -42,7 +42,7 @@ namespace VirtualVacuumRobot.Tests {
             };
 
             // Act
-            CompleteTaskWithin(5, vacuum.StartVaccum);
+            CompleteTaskWithin(5, () => vacuum.StartVacuum());
         }
 
         [Fact]
@@ -58,7 +58,7 @@ namespace VirtualVacuumRobot.Tests {
             };
 
             // Act
-            CompleteTaskWithin(5, vacuum.StartVaccum);
+            CompleteTaskWithin(5, () => vacuum.StartVacuum());
         }
 
         [Fact]
@@ -79,7 +79,7 @@ namespace VirtualVacuumRobot.Tests {
             };
 
             // Act
-            CompleteTaskWithin(5, vacuum.StartVaccum);
+            CompleteTaskWithin(5, () => vacuum.StartVacuum());
         }
 
         [Fact]
@@ -95,7 +95,7 @@ namespace VirtualVacuumRobot.Tests {
             };
 
             // Act
-            CompleteTaskWithin(5, vacuum.ChargeVaccum);
+            CompleteTaskWithin(5, () => vacuum.ChargeVacuum());
         }
 
         [Fact]
@@ -111,7 +111,7 @@ namespace VirtualVacuumRobot.Tests {
             };
 
             // Act
-            CompleteTaskWithin(5, vacuum.ChargeVaccum);
+            CompleteTaskWithin(5, () => vacuum.ChargeVacuum());
         }
 
         [Fact]
@@ -131,7 +131,7 @@ namespace VirtualVacuumRobot.Tests {
             };
 
             // Act
-            CompleteTaskWithin(5, vacuum.ChargeVaccum);
+            CompleteTaskWithin(5, () => vacuum.ChargeVacuum());
         }
 
         private void CompleteTaskWithin(int seconds, Action func) {

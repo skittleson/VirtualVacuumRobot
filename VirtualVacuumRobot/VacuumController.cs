@@ -11,6 +11,7 @@ namespace VirtualVacuumRobot {
         private readonly QueueBroker _queueBroker;
         private bool _runtimeLoop = true;
         private bool _byMinute, _cleaningLoop, _chargingLoop;
+        private int _id;
 
         public double PowerPecentage { get; private set; }
         public Action<VacuumEvents, string> OnEvent { get; set; }
@@ -27,6 +28,7 @@ namespace VirtualVacuumRobot {
 
         public VacuumController(ILogger logger, QueueBroker queueBroker, bool byMinute = false) {
             _rnd = new Random();
+            _id = _rnd.Next(100, 10000);
             _byMinute = byMinute;
             _timeInterval = byMinute ? 1000 : 0;
             _logger = logger;
@@ -53,10 +55,10 @@ namespace VirtualVacuumRobot {
                 Thread.Sleep(_timeInterval);
                 if (startCleaning || _cleaningLoop) {
                     startCleaning = false;
-                    StartVaccum();
+                    StartVacuum();
                 }
                 if (_chargingLoop) {
-                    ChargeVaccum();
+                    ChargeVacuum();
                 }
                 RaiseMessage(VacuumEvents.SLEEPING);
             }
@@ -69,7 +71,7 @@ namespace VirtualVacuumRobot {
             _chargingLoop = false;
         }
 
-        public void StartVaccum() {
+        public void StartVacuum() {
             var powerPercentageDeclineRnd = _rnd.NextDouble() * (1 - .02) + .02;
             RaiseMessage(VacuumEvents.STARTED);
             _cleaningLoop = true;
@@ -81,13 +83,13 @@ namespace VirtualVacuumRobot {
             }
             _cleaningLoop = false;
             RaiseMessage(VacuumEvents.ENDED);
-            var isEndingDueToPowerPencentage = PowerPecentage <= 5;
-            if (isEndingDueToPowerPencentage) {
+            var isEndingDueToPowerPercentage = PowerPecentage <= 5;
+            if (isEndingDueToPowerPercentage) {
                 _chargingLoop = true;
             }
         }
 
-        public void ChargeVaccum() {
+        public void ChargeVacuum() {
             var chargeRate = _rnd.NextDouble() * (3 - .02) + .02;
             RaiseMessage(VacuumEvents.STARTED_CHARGE);
             _cleaningLoop = false;
