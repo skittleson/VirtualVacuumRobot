@@ -1,6 +1,8 @@
-﻿using System;
+﻿using Amazon.SimpleNotificationService;
+using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace VirtualVacuumRobot {
 
@@ -9,6 +11,7 @@ namespace VirtualVacuumRobot {
         private readonly int _timeInterval;
         private readonly ILogger _logger;
         private readonly QueueBroker _queueBroker;
+        private readonly IAmazonSimpleNotificationService _sns;
         private bool _runtimeLoop = true;
         private bool _byMinute, _cleaningLoop, _chargingLoop;
         private int _id;
@@ -26,14 +29,15 @@ namespace VirtualVacuumRobot {
             SHUTDOWN
         }
 
-        public VacuumController(ILogger logger, QueueBroker queueBroker, bool byMinute = false) {
+        public VacuumController(ILogger logger, IAmazonSimpleNotificationService sns, QueueBroker queueBroker, bool byMinute = false) {
             _rnd = new Random();
             _id = _rnd.Next(100, 10000);
             _byMinute = byMinute;
             _timeInterval = byMinute ? 1000 : 0;
             _logger = logger;
             _queueBroker = queueBroker;
-            if (_queueBroker != null) {
+            _sns = sns;
+            if(_queueBroker != null) {
                 _queueBroker.OnEvent = FromQueueBroker;
                 _queueBroker.StartListening();
             }
@@ -41,23 +45,23 @@ namespace VirtualVacuumRobot {
         }
 
         private void FromQueueBroker(IList<string> messages) {
-            foreach (var action in messages) {
-                if (action == "START") {
+            foreach(var action in messages) {
+                if(action == "START") {
                     _cleaningLoop = true;
-                } else if (action == "CHARGE") {
+                } else if(action == "CHARGE") {
                     _chargingLoop = true;
                 }
             }
         }
 
         public void RuntimeLoop(bool startCleaning = true) {
-            while (_runtimeLoop) {
+            while(_runtimeLoop) {
                 Thread.Sleep(_timeInterval);
-                if (startCleaning || _cleaningLoop) {
+                if(startCleaning || _cleaningLoop) {
                     startCleaning = false;
                     StartVacuum();
                 }
-                if (_chargingLoop) {
+                if(_chargingLoop) {
                     ChargeVacuum();
                 }
                 RaiseMessage(VacuumEvents.SLEEPING);
@@ -76,7 +80,7 @@ namespace VirtualVacuumRobot {
             RaiseMessage(VacuumEvents.STARTED);
             _cleaningLoop = true;
             _chargingLoop = false;
-            while (_cleaningLoop && PowerPecentage > 5) {
+            while(_cleaningLoop && PowerPecentage > 5) {
                 Thread.Sleep(_timeInterval);
                 PowerPecentage -= powerPercentageDeclineRnd;
                 RaiseMessage(VacuumEvents.CLEANING, PowerPecentage.ToString());
@@ -84,7 +88,7 @@ namespace VirtualVacuumRobot {
             _cleaningLoop = false;
             RaiseMessage(VacuumEvents.ENDED);
             var isEndingDueToPowerPercentage = PowerPecentage <= 5;
-            if (isEndingDueToPowerPercentage) {
+            if(isEndingDueToPowerPercentage) {
                 _chargingLoop = true;
             }
         }
@@ -95,7 +99,7 @@ namespace VirtualVacuumRobot {
             _cleaningLoop = false;
             _chargingLoop = true;
             PowerPecentage = 0; // Consider battery power dead.
-            while (_chargingLoop && PowerPecentage < 100) {
+            while(_chargingLoop && PowerPecentage < 100) {
                 Thread.Sleep(_timeInterval);
                 PowerPecentage += chargeRate;
                 RaiseMessage(VacuumEvents.CHARGING, PowerPecentage.ToString());
@@ -107,6 +111,11 @@ namespace VirtualVacuumRobot {
         private void RaiseMessage(VacuumEvents eventType, string message = "") {
             _logger?.Log(eventType.ToString() + " " + message);
             OnEvent?.Invoke(eventType, message);
+            try {
+                Task.Run(() => _sns.PublishAsync("", ""));
+            } catch(Exception ex) {
+                _logger.Log(ex.GetBaseException().ToString());
+            }
         }
     }
 }
