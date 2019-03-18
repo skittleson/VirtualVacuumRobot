@@ -2,8 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using System.Threading.Tasks;
-using Xunit.Sdk;
+using Amazon;
+using Amazon.SimpleNotificationService.Model;
 
 namespace VirtualVacuumRobot {
 
@@ -12,11 +12,13 @@ namespace VirtualVacuumRobot {
         private readonly int _timeInterval;
         private readonly ILogger _logger;
         private readonly QueueBroker _queueBroker;
-        private readonly IAmazonSimpleNotificationService _sns;
+        private IAmazonSimpleNotificationService _sns;
         private bool _runtimeLoop = true;
         private bool _byMinute, _cleaningLoop, _chargingLoop;
         private int _id;
         private int _runCount;
+        private string _AWSSNSArn;
+        private List<String> _topicList;
 
         public double PowerPecentage { get; private set; }
         public Action<VacuumEvents, string> OnEvent { get; set; }
@@ -47,6 +49,7 @@ namespace VirtualVacuumRobot {
                 _queueBroker.StartListening();
             }
             PowerPecentage = _rnd.Next(65, 100);
+            CreateSnsTopics();
         }
 
         private void FromQueueBroker(IList<string> messages) {
@@ -127,11 +130,28 @@ namespace VirtualVacuumRobot {
             return rand == 1;
         }
 
+        private void CreateSnsTopics()
+        {
+            // TODO: (bherron, 20190317) - determine and populate topic names
+            _topicList = new List<string>(new string[] {"topic_1", "topic_2", "topic_3"});
+            for (int i = 0; i < _topicList.Count; i++) {
+                try {
+                    _sns = new AmazonSimpleNotificationServiceClient(RegionEndpoint.USWest1);
+                    _AWSSNSArn = _sns.CreateTopicAsync(new CreateTopicRequest {
+                        Name = _topicList[i]
+                    }).Result.TopicArn;
+                }
+                catch (Exception ex) {
+                    _logger.Log(ex.GetBaseException().ToString());
+                }
+            }
+        }
+
         private void RaiseMessage(VacuumEvents eventType, string message = "") {
             _logger?.Log(eventType.ToString() + " " + message);
             OnEvent?.Invoke(eventType, message);
             try {
-                Task.Run(() => _sns.PublishAsync("", ""));
+               // Task.Run(() => _sns.PublishAsync("", ""));
             } catch(Exception ex) {
                 _logger.Log(ex.GetBaseException().ToString());
             }
