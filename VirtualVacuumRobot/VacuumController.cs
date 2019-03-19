@@ -73,11 +73,10 @@ namespace VirtualVacuumRobot {
             }
         }
 
-        public void RuntimeLoop(bool startCleaning = true) {
+        public void RuntimeLoop() {
             while(_runtimeLoop) {
                 Thread.Sleep(_timeInterval);
-                if(startCleaning || _cleaningLoop) {
-                    startCleaning = false;
+                if(_cleaningLoop) {
                     StartVacuum();
                 }
                 if(_chargingLoop) {
