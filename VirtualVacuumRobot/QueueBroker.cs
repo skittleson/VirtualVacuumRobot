@@ -1,4 +1,5 @@
-﻿using Amazon.SQS;
+﻿using Amazon.SimpleNotificationService;
+using Amazon.SQS;
 using Amazon.SQS.Model;
 using Newtonsoft.Json;
 using System;
@@ -24,19 +25,23 @@ namespace VirtualVacuumRobot {
             try {
                 var findResponse = _client.GetQueueUrlAsync(new GetQueueUrlRequest(QUEUE_NAME)).Result;
                 _queueUrl = findResponse.QueueUrl;
-            } catch (Exception ex) {
+            } catch(Exception ex) {
                 var createdRequest = new CreateQueueRequest(QUEUE_NAME) {
                     Attributes = new Dictionary<string, string> {
                         { QueueAttributeName.MessageRetentionPeriod, "120" }
                     }
                 };
                 var createdResponse = _client.CreateQueueAsync(createdRequest).Result;
-                if ((int)createdResponse.HttpStatusCode == 200) {
+                if((int)createdResponse.HttpStatusCode == 200) {
                     _queueUrl = createdResponse.QueueUrl;
                 } else {
                     throw new Exception("Unable to create queue");
                 }
             }
+        }
+
+        public void Subscribe(IAmazonSimpleNotificationService snsClient, string topicArn) {
+            snsClient.SubscribeQueueAsync(topicArn, _client, _queueUrl).Wait();
         }
 
         public void StartListening() {
@@ -50,11 +55,11 @@ namespace VirtualVacuumRobot {
         }
 
         public void ReceiveMessages() {
-            while (_running) {
+            while(_running) {
                 var response = _client.ReceiveMessageAsync(_queueUrl).Result;
                 var messages = response.Messages.Select(x => {
                     var message = "";
-                    if (x.Body.StartsWith('{')) {
+                    if(x.Body.StartsWith('{')) {
                         dynamic jsonObj = JsonConvert.DeserializeObject<ExpandoObject>(x.Body);
                         message = jsonObj.Message;
                     } else {
@@ -63,7 +68,7 @@ namespace VirtualVacuumRobot {
                     return new QueueMessageCacheModel(x.MessageId, message);
                 }).ToList();
                 var result = messages.Where(p => !_cachedMessageIds.Any(p2 => p2.MessageId == p.MessageId)).ToList();
-                if (result.Count > 0) {
+                if(result.Count > 0) {
                     _cachedMessageIds.AddRange(result);
                 }
                 var messageBodies = result.Select(x => x.Message).ToList();

@@ -1,5 +1,6 @@
 ﻿using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -37,6 +38,7 @@ namespace VirtualVacuumRobot {
         private const string SNS_TOPIC_GENERAL = "VirtualVacuumRobot_General";
 
         private Dictionary<string, string> _snsTopics = new Dictionary<string, string>(){
+            {"VirtualVacuumRobot" ,"" },
             {"VirtualVacuumRobot_" + VacuumEvents.DUSTBIN_FULL.ToString() ,"" },
             {"VirtualVacuumRobot_" + VacuumEvents.STUCK.ToString() ,"" },
             {SNS_TOPIC_GENERAL,"" },
@@ -51,12 +53,13 @@ namespace VirtualVacuumRobot {
             _runCount = 0;
             _queueBroker = queueBroker;
             _sns = sns;
+            FindOrCreateSnsTopics();
             if(_queueBroker != null) {
+                _queueBroker.Subscribe(_sns, _snsTopics["VirtualVacuumRobot"]);
                 _queueBroker.OnEvent = FromQueueBroker;
                 _queueBroker.StartListening();
             }
             PowerPecentage = _rnd.Next(65, 100);
-            FindOrCreateSnsTopics();
         }
 
         private void FromQueueBroker(IList<string> messages) {
@@ -157,6 +160,12 @@ namespace VirtualVacuumRobot {
         }
 
         private void RaiseMessage(VacuumEvents eventType, string message = "") {
+            dynamic messageObject = new {
+                id = _id,
+                message,
+                eventType
+            };
+            var messageRequest = JsonConvert.SerializeObject(messageObject);
             _logger?.Log(eventType.ToString() + " " + message);
             OnEvent?.Invoke(eventType, message);
             var topicArnToNotify = SNS_TOPIC_GENERAL;
@@ -164,7 +173,7 @@ namespace VirtualVacuumRobot {
                 topicArnToNotify = "VirtualVacuumRobot_" + eventType.ToString();
             }
             try {
-                Task.Run(() => _sns.PublishAsync(topicArnToNotify, message));
+                Task.Run(() => _sns.PublishAsync(topicArnToNotify, messageRequest));
             } catch(Exception ex) {
                 _logger.Log(ex.GetBaseException().ToString());
             }
