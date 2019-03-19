@@ -144,6 +144,51 @@ namespace VirtualVacuumRobot.Tests {
             CompleteTaskWithin(5, () => vacuum.ChargeVacuum());
             Assert.True(updates.Count > 5);
         }
+        
+        [Fact]
+        public void Dustbin_will_be_full_on_third_run() {
+            // Arrange
+            var isFull = false;
+            var vacuum = MockVacuumController();
+            vacuum.OnEvent += (VacuumEvents eventType, string message) => {
+                if (eventType == VacuumEvents.CLEANING) {
+                    vacuum.Shutdown();
+                }
+                // Assert
+                if (eventType == VacuumEvents.DUSTBIN_FULL) {
+                    isFull = true;
+                    vacuum.Shutdown();
+                }
+            };
+
+            // Act
+            CompleteTaskWithin(5, () => vacuum.StartVacuum());
+            CompleteTaskWithin(5, () => vacuum.StartVacuum());
+            CompleteTaskWithin(5, () => vacuum.StartVacuum());
+            Assert.True(isFull);
+        }
+        
+        [Fact]
+        public void Can_get_stuck() {
+            // Arrange
+            var isStuck = false;
+            var vacuum = MockVacuumController();
+            vacuum.OnEvent += (VacuumEvents eventType, string message) => {
+                if (eventType == VacuumEvents.SLEEPING) {
+                    vacuum.Shutdown();
+                }
+                // Assert
+                if (eventType == VacuumEvents.STUCK) {
+                    isStuck = true;
+                    vacuum.Shutdown();
+                }
+            };
+            // Act
+            for (int i = 0; i < 2000; i++) {
+                CompleteTaskWithin(5, () => vacuum.StartVacuum());
+            }
+            Assert.True(isStuck);
+        }
 
         private void CompleteTaskWithin(int seconds, Action func) {
             var task = Task.Run(() => func());
