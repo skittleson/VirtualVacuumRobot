@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Amazon.SimpleNotificationService;
+using Moq;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
@@ -8,10 +10,17 @@ namespace VirtualVacuumRobot.Tests {
 
     public class VacuumControllerTests {
 
+        private VacuumController MockVacuumController(){ 
+            var sns = new Mock<IAmazonSimpleNotificationService>();
+            sns.Setup(x => x.FindTopicAsync(It.IsAny<string>())).ReturnsAsync(new Amazon.SimpleNotificationService.Model.Topic(){ TopicArn = "mock" } );
+            var logger = new Mock<ILogger>();
+            return new VacuumController(logger.Object, sns.Object, null,false);
+        }
+
         [Fact]
         public void Can_start() {
             // Arrange
-            var vacuum = new VacuumController(null, null, null,false);
+            var vacuum = MockVacuumController();
 
             // Assert
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
@@ -28,7 +37,7 @@ namespace VirtualVacuumRobot.Tests {
         [Fact]
         public void Can_be_sent_for_charge_when_cleaning() {
             // Arrange
-            var vacuum = new VacuumController(null, null, null,false);
+            var vacuum = MockVacuumController();
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 if (eventType == VacuumEvents.CLEANING) {
                     vacuum.ChargeVacuum();
@@ -48,7 +57,7 @@ namespace VirtualVacuumRobot.Tests {
         [Fact]
         public void Will_go_for_charge_if_low_on_power() {
             // Arrange
-            var vacuum = new VacuumController(null, null, null,false);
+            var vacuum = MockVacuumController();
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 // Assert
                 if (eventType == VacuumEvents.STARTED_CHARGE) {
@@ -65,7 +74,7 @@ namespace VirtualVacuumRobot.Tests {
         public void Can_send_regular_updates_on_cleaning() {
             // Arrange
             var cleanUpdates = new List<VacuumEvents>();
-            var vacuum = new VacuumController(null,null,null,false);
+            var vacuum = MockVacuumController();
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 if (eventType == VacuumEvents.CLEANING) {
                     cleanUpdates.Add(eventType);
@@ -85,7 +94,7 @@ namespace VirtualVacuumRobot.Tests {
         [Fact]
         public void Can_charge() {
             // Arrange
-            var vacuum = new VacuumController(null,null,null,false);
+            var vacuum = MockVacuumController();
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 // Assert
                 if (eventType == VacuumEvents.STARTED_CHARGE) {
@@ -101,37 +110,39 @@ namespace VirtualVacuumRobot.Tests {
         [Fact]
         public void After_full_charge_goes_to_sleep() {
             // Arrange
-            var vacuum = new VacuumController(null,null,null,false);
+            var didSleep = false;
+            var vacuum = MockVacuumController();
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 // Assert
                 if (eventType == VacuumEvents.SLEEPING) {
-                    Assert.True(true);
+                    didSleep = true;
                     vacuum.Shutdown();
                 }
             };
 
             // Act
             CompleteTaskWithin(5, () => vacuum.ChargeVacuum());
+            Assert.True(didSleep);
         }
 
         [Fact]
         public void Can_get_regular_updates_while_charging() {
             // Arrange
             var updates = new List<VacuumEvents>();
-            var vacuum = new VacuumController(null,null,null,false);
+            var vacuum = MockVacuumController();
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 if (eventType == VacuumEvents.CHARGING) {
                     updates.Add(eventType);
                 }
                 // Assert
                 if (eventType == VacuumEvents.SLEEPING) {
-                    Assert.True(updates.Count > 5);
                     vacuum.Shutdown();
                 }
             };
 
             // Act
             CompleteTaskWithin(5, () => vacuum.ChargeVacuum());
+            Assert.True(updates.Count > 5);
         }
 
         private void CompleteTaskWithin(int seconds, Action func) {

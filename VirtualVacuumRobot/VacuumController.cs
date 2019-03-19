@@ -1,9 +1,10 @@
 ﻿using Amazon.SimpleNotificationService;
+using Amazon.SimpleNotificationService.Model;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
-using Amazon;
-using Amazon.SimpleNotificationService.Model;
+using System.Threading.Tasks;
 
 namespace VirtualVacuumRobot {
 
@@ -17,8 +18,6 @@ namespace VirtualVacuumRobot {
         private bool _byMinute, _cleaningLoop, _chargingLoop;
         private int _id;
         private int _runCount;
-        private string _AWSSNSArn;
-        private List<String> _topicList;
 
         public double PowerPecentage { get; private set; }
         public Action<VacuumEvents, string> OnEvent { get; set; }
@@ -35,6 +34,14 @@ namespace VirtualVacuumRobot {
             SHUTDOWN
         }
 
+        private const string SNS_TOPIC_GENERAL = "VirtualVacuumRobot_General";
+
+        private Dictionary<string, string> _snsTopics = new Dictionary<string, string>(){
+            {"VirtualVacuumRobot_" + VacuumEvents.DUSTBIN_FULL.ToString() ,"" },
+            {"VirtualVacuumRobot_" + VacuumEvents.STUCK.ToString() ,"" },
+            {SNS_TOPIC_GENERAL,"" },
+        };
+
         public VacuumController(ILogger logger, IAmazonSimpleNotificationService sns, QueueBroker queueBroker, bool byMinute = false) {
             _rnd = new Random();
             _id = _rnd.Next(100, 10000);
@@ -49,7 +56,7 @@ namespace VirtualVacuumRobot {
                 _queueBroker.StartListening();
             }
             PowerPecentage = _rnd.Next(65, 100);
-            CreateSnsTopics();
+            FindOrCreateSnsTopics();
         }
 
         private void FromQueueBroker(IList<string> messages) {
@@ -83,8 +90,7 @@ namespace VirtualVacuumRobot {
             _chargingLoop = false;
         }
 
-        public void StartVacuum()
-        {
+        public void StartVacuum() {
             _runCount++;
             var powerPercentageDeclineRnd = _rnd.NextDouble() * (1 - .02) + .02;
             RaiseMessage(VacuumEvents.STARTED);
@@ -92,11 +98,11 @@ namespace VirtualVacuumRobot {
             _chargingLoop = false;
             while(_cleaningLoop && PowerPecentage > 5) {
                 Thread.Sleep(_timeInterval);
-                if (IsStuck()) {
+                if(IsStuck()) {
                     RaiseMessage(VacuumEvents.STUCK, PowerPecentage.ToString());
                     break;
                 }
-                if (_runCount > 1) {
+                if(_runCount > 1) {
                     RaiseMessage(VacuumEvents.DUSTBIN_FULL, PowerPecentage.ToString());
                 }
                 PowerPecentage -= powerPercentageDeclineRnd;
@@ -125,33 +131,40 @@ namespace VirtualVacuumRobot {
             RaiseMessage(VacuumEvents.SLEEPING);
         }
 
-        private Boolean IsStuck() {
+        private bool IsStuck() {
             int rand = _rnd.Next(0, 1000);
             return rand == 1;
         }
 
-        private void CreateSnsTopics()
-        {
-            // TODO: (bherron, 20190317) - determine and populate topic names
-            _topicList = new List<string>(new string[] {"topic_1", "topic_2", "topic_3"});
-            for (int i = 0; i < _topicList.Count; i++) {
+        private void FindOrCreateSnsTopics() {
+            _snsTopics = _snsTopics.Select(topicKeyValue => {
+                var topic = topicKeyValue.Key;
+                var topicArn = "";
                 try {
-                    _sns = new AmazonSimpleNotificationServiceClient(RegionEndpoint.USWest1);
-                    _AWSSNSArn = _sns.CreateTopicAsync(new CreateTopicRequest {
-                        Name = _topicList[i]
-                    }).Result.TopicArn;
+                    topicArn = _sns.FindTopicAsync(topic).Result.TopicArn;
+                } catch(Exception ex) {
+                    try {
+                        topicArn = _sns.CreateTopicAsync(new CreateTopicRequest {
+                            Name = topic
+                        }).Result.TopicArn;
+                    } catch(Exception ex2) {
+                        _logger.Log(ex.GetBaseException().ToString());
+                        throw ex2;
+                    }
                 }
-                catch (Exception ex) {
-                    _logger.Log(ex.GetBaseException().ToString());
-                }
-            }
+                return new KeyValuePair<string, string>(topic, topicArn);
+            }).ToDictionary(k => k.Key, v => v.Value);
         }
 
         private void RaiseMessage(VacuumEvents eventType, string message = "") {
             _logger?.Log(eventType.ToString() + " " + message);
             OnEvent?.Invoke(eventType, message);
+            var topicArnToNotify = SNS_TOPIC_GENERAL;
+            if(eventType == VacuumEvents.DUSTBIN_FULL || eventType == VacuumEvents.STUCK) {
+                topicArnToNotify = "VirtualVacuumRobot_" + eventType.ToString();
+            }
             try {
-               // Task.Run(() => _sns.PublishAsync("", ""));
+                Task.Run(() => _sns.PublishAsync(topicArnToNotify, message));
             } catch(Exception ex) {
                 _logger.Log(ex.GetBaseException().ToString());
             }
