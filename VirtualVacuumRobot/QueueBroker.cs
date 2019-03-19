@@ -28,7 +28,7 @@ namespace VirtualVacuumRobot {
             } catch(Exception ex) {
                 var createdRequest = new CreateQueueRequest(QUEUE_NAME) {
                     Attributes = new Dictionary<string, string> {
-                        { QueueAttributeName.MessageRetentionPeriod, "120" }
+                        { QueueAttributeName.MessageRetentionPeriod, "240" }
                     }
                 };
                 var createdResponse = _client.CreateQueueAsync(createdRequest).Result;
