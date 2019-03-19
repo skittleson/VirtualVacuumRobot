@@ -167,10 +167,10 @@ namespace VirtualVacuumRobot {
             dynamic messageObject = new {
                 id = _id,
                 message,
-                eventType
+                eventType = eventType.ToString("g")
             };
             var messageRequest = JsonConvert.SerializeObject(messageObject);
-            _logger?.Log(eventType.ToString() + " " + message);
+            _logger?.Log(messageRequest);
             OnEvent?.Invoke(eventType, message);
             var topicArnToNotify = _snsTopics[SNS_TOPIC_GENERAL];
             if(eventType == VacuumEvents.DUSTBIN_FULL || eventType == VacuumEvents.STUCK) {
