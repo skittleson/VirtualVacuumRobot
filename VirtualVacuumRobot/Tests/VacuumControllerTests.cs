@@ -173,6 +173,8 @@ namespace VirtualVacuumRobot.Tests {
             // Arrange
             var isStuck = false;
             var vacuum = MockVacuumController();
+            vacuum.DustBinFullCount = 200000000;
+            vacuum.ChanceOfGettingStuck = 2;
             vacuum.OnEvent += (VacuumEvents eventType, string message) => {
                 if (eventType == VacuumEvents.SLEEPING) {
                     vacuum.Shutdown();
@@ -184,7 +186,7 @@ namespace VirtualVacuumRobot.Tests {
                 }
             };
             // Act
-            for (int i = 0; i < 2000; i++) {
+            for (int i = 0; i < 100; i++) {
                 CompleteTaskWithin(5, () => vacuum.StartVacuum());
             }
             Assert.True(isStuck);

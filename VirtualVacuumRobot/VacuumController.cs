@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace VirtualVacuumRobot {
 
@@ -20,8 +19,10 @@ namespace VirtualVacuumRobot {
         private int _id;
         private int _runCount;
 
+        public int DustBinFullCount = 2;
         public double PowerPecentage { get; private set; }
         public Action<VacuumEvents, string> OnEvent { get; set; }
+        public int ChanceOfGettingStuck { get; set; } = 1000;
 
         public enum VacuumEvents {
             DUSTBIN_FULL,
@@ -64,9 +65,9 @@ namespace VirtualVacuumRobot {
 
         private void FromQueueBroker(IList<string> messages) {
             foreach(var action in messages) {
-                if(action == "START") {
+                if(action == "START" && !_cleaningLoop) {
                     _cleaningLoop = true;
-                } else if(action == "CHARGE") {
+                } else if(action == "CHARGE" && !_chargingLoop) {
                     _chargingLoop = true;
                 }
             }
@@ -103,10 +104,13 @@ namespace VirtualVacuumRobot {
                 Thread.Sleep(_timeInterval);
                 if(IsStuck()) {
                     RaiseMessage(VacuumEvents.STUCK, PowerPecentage.ToString());
+                    _cleaningLoop = false;
                     break;
                 }
-                if(_runCount > 1) {
+                if(_runCount > DustBinFullCount) {
                     RaiseMessage(VacuumEvents.DUSTBIN_FULL, PowerPecentage.ToString());
+                    _cleaningLoop = false;
+                    break;
                 }
                 PowerPecentage -= powerPercentageDeclineRnd;
                 RaiseMessage(VacuumEvents.CLEANING, PowerPecentage.ToString());
@@ -135,7 +139,7 @@ namespace VirtualVacuumRobot {
         }
 
         private bool IsStuck() {
-            int rand = _rnd.Next(0, 1000);
+            int rand = _rnd.Next(0, ChanceOfGettingStuck);
             return rand == 1;
         }
 
@@ -168,12 +172,12 @@ namespace VirtualVacuumRobot {
             var messageRequest = JsonConvert.SerializeObject(messageObject);
             _logger?.Log(eventType.ToString() + " " + message);
             OnEvent?.Invoke(eventType, message);
-            var topicArnToNotify = SNS_TOPIC_GENERAL;
+            var topicArnToNotify = _snsTopics[SNS_TOPIC_GENERAL];
             if(eventType == VacuumEvents.DUSTBIN_FULL || eventType == VacuumEvents.STUCK) {
-                topicArnToNotify = "VirtualVacuumRobot_" + eventType.ToString();
+                topicArnToNotify = _snsTopics["VirtualVacuumRobot_" + eventType.ToString()];
             }
             try {
-                Task.Run(() => _sns.PublishAsync(topicArnToNotify, messageRequest));
+                _sns.PublishAsync(topicArnToNotify, messageRequest).Wait();
             } catch(Exception ex) {
                 _logger.Log(ex.GetBaseException().ToString());
             }
