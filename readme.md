@@ -9,7 +9,7 @@ A simple vacuum robot to test out swarm intelligence : https://en.wikipedia.org/
 
 ## Getting Started
 
-Create a `docker-compose.yml` file with the AWS credentials
+Create a `docker-compose.yml` file in a new directory and replace the AWS credentials below.
 
 ```yml
 version: "3"
@@ -24,7 +24,7 @@ services:
 
 Spin up 3 instances with: `docker-compose up --scale vvr=3`
 
-Now go to your AWS Console then look for Amazon SNS.
+Now go to your AWS Console then look for Amazon SNS topics created.
 
 ## How it Works
 
