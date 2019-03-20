@@ -64,11 +64,28 @@ namespace VirtualVacuumRobot {
         }
 
         private void FromQueueBroker(IList<string> messages) {
-            foreach(var action in messages) {
-                if(action == "START" && !_cleaningLoop) {
-                    _cleaningLoop = true;
-                } else if(action == "CHARGE" && !_chargingLoop) {
-                    _chargingLoop = true;
+            foreach(var message in messages) {
+                if(message.StartsWith('{')) {
+                    try {
+                        var messageRequest = JsonConvert.DeserializeObject<VirtualVacuumRobotSqsMessage>(message);
+                        if(messageRequest.Id == _id.ToString() || messageRequest.Id == "") {
+                            if(string.Equals(messageRequest.Action, "start", StringComparison.CurrentCultureIgnoreCase)) {
+                                _cleaningLoop = true;
+                            }
+                            if(string.Equals(messageRequest.Action, "stop", StringComparison.CurrentCultureIgnoreCase)) {
+                                _cleaningLoop = false;
+                            }
+                        }
+                    } catch(Exception ex) {
+                        _logger.Log(message + ex.GetBaseException().ToString());
+                        break;
+                    }
+                } else {
+                    if(message == "START" && !_cleaningLoop) {
+                        _cleaningLoop = true;
+                    } else if(message == "CHARGE" && !_chargingLoop) {
+                        _chargingLoop = true;
+                    }
                 }
             }
         }
@@ -180,6 +197,11 @@ namespace VirtualVacuumRobot {
             } catch(Exception ex) {
                 _logger.Log(ex.GetBaseException().ToString());
             }
+        }
+
+        internal class VirtualVacuumRobotSqsMessage {
+            public string Action { get; set; }
+            public string Id { get; set; }
         }
     }
 }
