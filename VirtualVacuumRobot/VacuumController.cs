@@ -33,7 +33,9 @@ namespace VirtualVacuumRobot {
             STARTED_CHARGE,
             SLEEPING,
             STUCK,
-            SHUTDOWN
+            SHUTDOWN,
+            STATUS,
+            READY
         }
 
         private const string SNS_TOPIC_GENERAL = "VirtualVacuumRobot_General";
@@ -68,12 +70,24 @@ namespace VirtualVacuumRobot {
                 if(message.StartsWith('{')) {
                     try {
                         var messageRequest = JsonConvert.DeserializeObject<VirtualVacuumRobotSqsMessage>(message);
-                        if(messageRequest.Id == _id.ToString() || messageRequest.Id == "") {
-                            if(string.Equals(messageRequest.Action, "start", StringComparison.CurrentCultureIgnoreCase)) {
+                        if(messageRequest.Id == _id.ToString() || String.IsNullOrEmpty(messageRequest.Id)) {
+                            if (IsSame(messageRequest.Action, "start") && !_cleaningLoop) {
                                 _cleaningLoop = true;
                             }
-                            if(string.Equals(messageRequest.Action, "stop", StringComparison.CurrentCultureIgnoreCase)) {
+                            if (IsSame(messageRequest.Action, "stop")) {
                                 _cleaningLoop = false;
+                            }
+                            if (IsSame(messageRequest.Action, "charge") && !_chargingLoop) {
+                                _chargingLoop = true;
+                            }
+                            if (IsSame(messageRequest.Action, "dustbin")) {
+                                _runCount = 0;
+                            }
+                            if (IsSame(messageRequest.Action, "status")) {
+                                RaiseMessage(VacuumEvents.STATUS, PowerPecentage.ToString());
+                            }
+                            if(IsSame(messageRequest.Action, "shutdown")) {
+                                Shutdown();
                             }
                         }
                     } catch(Exception ex) {
@@ -91,7 +105,8 @@ namespace VirtualVacuumRobot {
         }
 
         public void RuntimeLoop() {
-            while(_runtimeLoop) {
+            RaiseMessage(VacuumEvents.READY, PowerPecentage.ToString());
+            while (_runtimeLoop) {
                 Thread.Sleep(_timeInterval);
                 if(_cleaningLoop) {
                     StartVacuum();
@@ -99,7 +114,6 @@ namespace VirtualVacuumRobot {
                 if(_chargingLoop) {
                     ChargeVacuum();
                 }
-                RaiseMessage(VacuumEvents.SLEEPING);
             }
         }
 
@@ -112,12 +126,18 @@ namespace VirtualVacuumRobot {
 
         public void StartVacuum() {
             _runCount++;
-            var powerPercentageDeclineRnd = _rnd.NextDouble() * (1 - .02) + .02;
+            var powerPercentageDeclineRnd = _rnd.NextDouble() * (1 - .08) + .08;
             RaiseMessage(VacuumEvents.STARTED);
             _cleaningLoop = true;
             _chargingLoop = false;
-            while(_cleaningLoop && PowerPecentage > 5) {
+            while(_cleaningLoop) {
                 Thread.Sleep(_timeInterval);
+                if (PowerPecentage < 5) {
+                    _chargingLoop = true;
+                }
+                if (_chargingLoop) {
+                    break;
+                }
                 if(IsStuck()) {
                     RaiseMessage(VacuumEvents.STUCK, PowerPecentage.ToString());
                     _cleaningLoop = false;
@@ -133,10 +153,6 @@ namespace VirtualVacuumRobot {
             }
             _cleaningLoop = false;
             RaiseMessage(VacuumEvents.ENDED);
-            var isEndingDueToPowerPercentage = PowerPecentage <= 5;
-            if(isEndingDueToPowerPercentage) {
-                _chargingLoop = true;
-            }
         }
 
         public void ChargeVacuum() {
@@ -197,6 +213,10 @@ namespace VirtualVacuumRobot {
             } catch(Exception ex) {
                 _logger.Log(ex.GetBaseException().ToString());
             }
+        }
+
+        private bool IsSame(string requestedCommand, string command) {
+            return string.Equals(requestedCommand, command, StringComparison.CurrentCultureIgnoreCase);
         }
 
         internal class VirtualVacuumRobotSqsMessage {

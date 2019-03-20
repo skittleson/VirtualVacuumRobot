@@ -28,7 +28,8 @@ namespace VirtualVacuumRobot {
             } catch(Exception ex) {
                 var createdRequest = new CreateQueueRequest(QUEUE_NAME) {
                     Attributes = new Dictionary<string, string> {
-                        { QueueAttributeName.MessageRetentionPeriod, "240" }
+                        { QueueAttributeName.MessageRetentionPeriod, "300" },
+                        { QueueAttributeName.ReceiveMessageWaitTimeSeconds, "20" }
                     }
                 };
                 var createdResponse = _client.CreateQueueAsync(createdRequest).Result;
@@ -70,10 +71,9 @@ namespace VirtualVacuumRobot {
                 var result = messages.Where(p => !_cachedMessageIds.Any(p2 => p2.MessageId == p.MessageId)).ToList();
                 if(result.Count > 0) {
                     _cachedMessageIds.AddRange(result);
+                    var messageBodies = result.Select(x => x.Message).ToList();
+                    OnEvent?.Invoke(messageBodies);
                 }
-                var messageBodies = result.Select(x => x.Message).ToList();
-                OnEvent?.Invoke(messageBodies);
-                Thread.Sleep(2 * 1000);
             }
         }
 
