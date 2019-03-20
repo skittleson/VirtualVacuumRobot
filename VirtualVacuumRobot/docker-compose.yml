@@ -1,8 +1,0 @@
-version: "3"
-services:
-  vvr:
-    build: ./
-    environment: 
-      - AWS_ACCESS_KEY_ID=REPLACEME
-      - AWS_SECRET_ACCESS_KEY=REPLACEME
-      - AWS_REGION=us-east-1
