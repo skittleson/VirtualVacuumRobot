@@ -14,26 +14,29 @@ namespace VirtualVacuumRobot {
         private const string QUEUE_NAME = "VirtualVacuumBotQueue";
         private readonly AmazonSQSClient _client;
         private bool _running;
+        private Thread _waitingForMessagesThread;
 
         private string _queueUrl { get; set; }
-        private List<QueueMessageCacheModel> _cachedMessageIds { get; set; }
         public Action<IList<string>> OnEvent { get; set; }
+        public string QueueUrlSnsTopicSubscribeArn { get; private set; }
 
         public QueueBroker() {
-            _cachedMessageIds = new List<QueueMessageCacheModel>();
             _client = new AmazonSQSClient();
+        }
+
+        public void CreateQueue(int id) {
             try {
-                var findResponse = _client.GetQueueUrlAsync(new GetQueueUrlRequest(QUEUE_NAME)).Result;
+                var findResponse = _client.GetQueueUrlAsync(new GetQueueUrlRequest(QUEUE_NAME + id)).Result;
                 _queueUrl = findResponse.QueueUrl;
-            } catch(Exception ex) {
-                var createdRequest = new CreateQueueRequest(QUEUE_NAME) {
+            } catch (Exception ex) {
+                var createdRequest = new CreateQueueRequest(QUEUE_NAME + id) {
                     Attributes = new Dictionary<string, string> {
                         { QueueAttributeName.MessageRetentionPeriod, "300" },
-                        { QueueAttributeName.ReceiveMessageWaitTimeSeconds, "20" }
+                        { QueueAttributeName.ReceiveMessageWaitTimeSeconds, "10" }
                     }
                 };
                 var createdResponse = _client.CreateQueueAsync(createdRequest).Result;
-                if((int)createdResponse.HttpStatusCode == 200) {
+                if ((int)createdResponse.HttpStatusCode == 200) {
                     _queueUrl = createdResponse.QueueUrl;
                 } else {
                     throw new Exception("Unable to create queue");
@@ -41,14 +44,18 @@ namespace VirtualVacuumRobot {
             }
         }
 
+        public void DeleteQueue() {
+            _client.DeleteQueueAsync(_queueUrl).Wait();
+        }
+
         public void Subscribe(IAmazonSimpleNotificationService snsClient, string topicArn) {
-            snsClient.SubscribeQueueAsync(topicArn, _client, _queueUrl).Wait();
+            QueueUrlSnsTopicSubscribeArn = snsClient.SubscribeQueueAsync(topicArn, _client, _queueUrl).Result;
         }
 
         public void StartListening() {
             _running = true;
-            var thread = new Thread(new ThreadStart(ReceiveMessages));
-            thread.Start();
+            _waitingForMessagesThread = new Thread(new ThreadStart(ReceiveMessages));
+            _waitingForMessagesThread.Start();
         }
 
         public void StopListening() {
@@ -56,24 +63,20 @@ namespace VirtualVacuumRobot {
         }
 
         public void ReceiveMessages() {
-            while(_running) {
+            while (_running) {
                 var response = _client.ReceiveMessageAsync(_queueUrl).Result;
                 var messages = response.Messages.Select(x => {
                     var message = "";
-                    if(x.Body.StartsWith('{')) {
+                    if (x.Body.StartsWith('{')) {
                         dynamic jsonObj = JsonConvert.DeserializeObject<ExpandoObject>(x.Body);
                         message = jsonObj.Message;
                     } else {
                         message = x.Body;
                     }
+                    _client.DeleteMessageAsync(new DeleteMessageRequest(_queueUrl, x.ReceiptHandle)).Wait();
                     return new QueueMessageCacheModel(x.MessageId, message);
                 }).ToList();
-                var result = messages.Where(p => !_cachedMessageIds.Any(p2 => p2.MessageId == p.MessageId)).ToList();
-                if(result.Count > 0) {
-                    _cachedMessageIds.AddRange(result);
-                    var messageBodies = result.Select(x => x.Message).ToList();
-                    OnEvent?.Invoke(messageBodies);
-                }
+                OnEvent?.Invoke(messages.Select(x => x.Message).ToList());
             }
         }
 

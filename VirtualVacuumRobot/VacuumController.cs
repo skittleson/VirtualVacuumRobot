@@ -57,7 +57,8 @@ namespace VirtualVacuumRobot {
             _queueBroker = queueBroker;
             _sns = sns;
             FindOrCreateSnsTopics();
-            if(_queueBroker != null) {
+            if (_queueBroker != null) {
+                _queueBroker.CreateQueue(_id);
                 _queueBroker.Subscribe(_sns, _snsTopics["VirtualVacuumRobot"]);
                 _queueBroker.OnEvent = FromQueueBroker;
                 _queueBroker.StartListening();
@@ -66,11 +67,11 @@ namespace VirtualVacuumRobot {
         }
 
         private void FromQueueBroker(IList<string> messages) {
-            foreach(var message in messages) {
-                if(message.StartsWith('{')) {
+            foreach (var message in messages) {
+                if (message.StartsWith('{')) {
                     try {
                         var messageRequest = JsonConvert.DeserializeObject<VirtualVacuumRobotSqsMessage>(message);
-                        if(messageRequest.Id == _id.ToString() || String.IsNullOrEmpty(messageRequest.Id)) {
+                        if (messageRequest.Id == _id.ToString() || String.IsNullOrEmpty(messageRequest.Id)) {
                             if (IsSame(messageRequest.Action, "start") && !_cleaningLoop) {
                                 _cleaningLoop = true;
                             }
@@ -86,19 +87,13 @@ namespace VirtualVacuumRobot {
                             if (IsSame(messageRequest.Action, "status")) {
                                 RaiseMessage(VacuumEvents.STATUS, PowerPecentage.ToString());
                             }
-                            if(IsSame(messageRequest.Action, "shutdown")) {
+                            if (IsSame(messageRequest.Action, "shutdown")) {
                                 Shutdown();
                             }
                         }
-                    } catch(Exception ex) {
+                    } catch (Exception ex) {
                         _logger.Log(message + ex.GetBaseException().ToString());
                         break;
-                    }
-                } else {
-                    if(message == "START" && !_cleaningLoop) {
-                        _cleaningLoop = true;
-                    } else if(message == "CHARGE" && !_chargingLoop) {
-                        _chargingLoop = true;
                     }
                 }
             }
@@ -108,10 +103,10 @@ namespace VirtualVacuumRobot {
             RaiseMessage(VacuumEvents.READY, PowerPecentage.ToString());
             while (_runtimeLoop) {
                 Thread.Sleep(_timeInterval);
-                if(_cleaningLoop) {
+                if (_cleaningLoop) {
                     StartVacuum();
                 }
-                if(_chargingLoop) {
+                if (_chargingLoop) {
                     ChargeVacuum();
                 }
             }
@@ -119,9 +114,15 @@ namespace VirtualVacuumRobot {
 
         public void Shutdown() {
             RaiseMessage(VacuumEvents.SHUTDOWN);
-            _runtimeLoop = false;
             _cleaningLoop = false;
             _chargingLoop = false;
+            if (_queueBroker != null) {
+                _queueBroker.StopListening();
+                Thread.Sleep(12 * 1000);
+                _queueBroker.DeleteQueue();
+                _sns.UnsubscribeAsync(_queueBroker.QueueUrlSnsTopicSubscribeArn);
+            }
+            _runtimeLoop = false;
         }
 
         public void StartVacuum() {
@@ -130,7 +131,7 @@ namespace VirtualVacuumRobot {
             RaiseMessage(VacuumEvents.STARTED);
             _cleaningLoop = true;
             _chargingLoop = false;
-            while(_cleaningLoop) {
+            while (_cleaningLoop) {
                 Thread.Sleep(_timeInterval);
                 if (PowerPecentage < 5) {
                     _chargingLoop = true;
@@ -138,12 +139,12 @@ namespace VirtualVacuumRobot {
                 if (_chargingLoop) {
                     break;
                 }
-                if(IsStuck()) {
+                if (IsStuck()) {
                     RaiseMessage(VacuumEvents.STUCK, PowerPecentage.ToString());
                     _cleaningLoop = false;
                     break;
                 }
-                if(_runCount > DustBinFullCount) {
+                if (_runCount > DustBinFullCount) {
                     RaiseMessage(VacuumEvents.DUSTBIN_FULL, PowerPecentage.ToString());
                     _cleaningLoop = false;
                     break;
@@ -161,7 +162,7 @@ namespace VirtualVacuumRobot {
             _cleaningLoop = false;
             _chargingLoop = true;
             PowerPecentage = 0; // Consider battery power dead.
-            while(_chargingLoop && PowerPecentage < 100) {
+            while (_chargingLoop && PowerPecentage < 100) {
                 Thread.Sleep(_timeInterval);
                 PowerPecentage += chargeRate;
                 RaiseMessage(VacuumEvents.CHARGING, PowerPecentage.ToString());
@@ -181,12 +182,12 @@ namespace VirtualVacuumRobot {
                 var topicArn = "";
                 try {
                     topicArn = _sns.FindTopicAsync(topic).Result.TopicArn;
-                } catch(Exception ex) {
+                } catch (Exception ex) {
                     try {
                         topicArn = _sns.CreateTopicAsync(new CreateTopicRequest {
                             Name = topic
                         }).Result.TopicArn;
-                    } catch(Exception ex2) {
+                    } catch (Exception ex2) {
                         _logger.Log(ex.GetBaseException().ToString());
                         throw ex2;
                     }
@@ -199,18 +200,19 @@ namespace VirtualVacuumRobot {
             dynamic messageObject = new {
                 id = _id,
                 message,
-                eventType = eventType.ToString("g")
+                eventType = eventType.ToString("g"),
+                timestamp = DateTime.UtcNow
             };
             var messageRequest = JsonConvert.SerializeObject(messageObject);
             _logger?.Log(messageRequest);
             OnEvent?.Invoke(eventType, message);
             var topicArnToNotify = _snsTopics[SNS_TOPIC_GENERAL];
-            if(eventType == VacuumEvents.DUSTBIN_FULL || eventType == VacuumEvents.STUCK) {
+            if (eventType == VacuumEvents.DUSTBIN_FULL || eventType == VacuumEvents.STUCK) {
                 topicArnToNotify = _snsTopics["VirtualVacuumRobot_" + eventType.ToString()];
             }
             try {
                 _sns.PublishAsync(topicArnToNotify, messageRequest).Wait();
-            } catch(Exception ex) {
+            } catch (Exception ex) {
                 _logger.Log(ex.GetBaseException().ToString());
             }
         }
