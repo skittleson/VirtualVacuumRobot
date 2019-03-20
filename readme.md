@@ -47,7 +47,7 @@ Publish to sns topic `VirtualVacuumRobot` to control all containers.
 Control a single vacuum by sending the id:
 Start cleaning: `{'action':'start', 'id': '1234'}`
 
-Receive messages on SNS topics:
+Receive json messages on SNS topics:
 
 - `VirtualVacuumRobot_DUSTBIN_FULL`
 - `VirtualVacuumRobot_General`
