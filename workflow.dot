@@ -1,0 +1,17 @@
+digraph G {
+  "SNS Topic: VirtualVacuumRobot" -> "SQS: Bot01"
+  "SNS Topic: VirtualVacuumRobot" -> "SQS: Bot02"
+  "SNS Topic: VirtualVacuumRobot" -> "SQS: Bot03"
+  "SQS: Bot01" -> "Container: Bot01"
+  "SQS: Bot02" -> "Container: Bot02"
+  "SQS: Bot03" -> "Container: Bot03"
+  "Container: Bot01" -> "SNS Topic: DUSTBIN_FULL"
+  "Container: Bot02" -> "SNS Topic: DUSTBIN_FULL"
+  "Container: Bot03" -> "SNS Topic: DUSTBIN_FULL"
+  "Container: Bot01" -> "SNS Topic: STUCK"
+  "Container: Bot02" -> "SNS Topic: STUCK"
+  "Container: Bot03" -> "SNS Topic: STUCK"
+  "Container: Bot01" -> "SNS Topic: General"
+  "Container: Bot02" -> "SNS Topic: General"
+  "Container: Bot03" -> "SNS Topic: General"
+}

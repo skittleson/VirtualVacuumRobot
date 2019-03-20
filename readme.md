@@ -34,7 +34,7 @@ Spin up 3 instances with: `docker-compose up --scale vvr=3`
 - Shutdown: `{'action':'shutdown'}`
 - Teardown: `{'action':'teardown'}` Removes all SNS topics and Queues for virtual vacuums
 
-Per vacuum robot by sending the id:
+Control a single vacuum by sending the id:
 Start cleaning: `{'action':'start', 'id': '1234'}`
 
 Receive messages on SNS topics:
@@ -42,6 +42,8 @@ Receive messages on SNS topics:
 - VirtualVacuumRobot_DUSTBIN_FULL
 - VirtualVacuumRobot_General
 - VirtualVacuumRobot_STUCK
+
+![Workflow](workflow.png)
 
 ## Development
 
