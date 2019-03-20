@@ -28,7 +28,7 @@ namespace VirtualVacuumRobot {
             try {
                 var findResponse = _client.GetQueueUrlAsync(new GetQueueUrlRequest(QUEUE_NAME + id)).Result;
                 _queueUrl = findResponse.QueueUrl;
-            } catch (Exception ex) {
+            } catch(Exception ex) {
                 var createdRequest = new CreateQueueRequest(QUEUE_NAME + id) {
                     Attributes = new Dictionary<string, string> {
                         { QueueAttributeName.MessageRetentionPeriod, "300" },
@@ -36,7 +36,7 @@ namespace VirtualVacuumRobot {
                     }
                 };
                 var createdResponse = _client.CreateQueueAsync(createdRequest).Result;
-                if ((int)createdResponse.HttpStatusCode == 200) {
+                if((int)createdResponse.HttpStatusCode == 200) {
                     _queueUrl = createdResponse.QueueUrl;
                 } else {
                     throw new Exception("Unable to create queue");
@@ -45,7 +45,22 @@ namespace VirtualVacuumRobot {
         }
 
         public void DeleteQueue() {
-            _client.DeleteQueueAsync(_queueUrl).Wait();
+            try {
+                _client.DeleteQueueAsync(_queueUrl).Wait();
+            } catch(Exception ex) {
+                // This may get deleted by a tear down
+            }
+        }
+
+        public void DeleteQueuesWithPrefix() {
+            try {
+                var queues = _client.ListQueuesAsync(new ListQueuesRequest(QUEUE_NAME)).Result;
+                foreach(var queue in queues.QueueUrls) {
+                    _client.DeleteQueueAsync(queue).Wait();
+                }
+            } catch(Exception ex) {
+                // These may get deleted by a tear down
+            }
         }
 
         public void Subscribe(IAmazonSimpleNotificationService snsClient, string topicArn) {
@@ -63,11 +78,11 @@ namespace VirtualVacuumRobot {
         }
 
         public void ReceiveMessages() {
-            while (_running) {
+            while(_running) {
                 var response = _client.ReceiveMessageAsync(_queueUrl).Result;
                 var messages = response.Messages.Select(x => {
                     var message = "";
-                    if (x.Body.StartsWith('{')) {
+                    if(x.Body.StartsWith('{')) {
                         dynamic jsonObj = JsonConvert.DeserializeObject<ExpandoObject>(x.Body);
                         message = jsonObj.Message;
                     } else {

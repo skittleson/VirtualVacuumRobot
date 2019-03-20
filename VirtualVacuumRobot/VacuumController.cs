@@ -90,6 +90,11 @@ namespace VirtualVacuumRobot {
                             if (IsSame(messageRequest.Action, "shutdown")) {
                                 Shutdown();
                             }
+                            if (IsSame(messageRequest.Action, "teardown")) {
+                                Shutdown();
+                                DeleteAllSnsTopics();
+                                _queueBroker?.DeleteQueuesWithPrefix();
+                            }
                         }
                     } catch (Exception ex) {
                         _logger.Log(message + ex.GetBaseException().ToString());
@@ -118,9 +123,12 @@ namespace VirtualVacuumRobot {
             _chargingLoop = false;
             if (_queueBroker != null) {
                 _queueBroker.StopListening();
-                Thread.Sleep(12 * 1000);
                 _queueBroker.DeleteQueue();
-                _sns.UnsubscribeAsync(_queueBroker.QueueUrlSnsTopicSubscribeArn);
+                try {
+                    _sns.UnsubscribeAsync(_queueBroker.QueueUrlSnsTopicSubscribeArn);
+                } catch(Exception ex) {
+                    // could have been torn down already
+                }                
             }
             _runtimeLoop = false;
         }
@@ -194,6 +202,16 @@ namespace VirtualVacuumRobot {
                 }
                 return new KeyValuePair<string, string>(topic, topicArn);
             }).ToDictionary(k => k.Key, v => v.Value);
+        }
+
+        private void DeleteAllSnsTopics(){
+            foreach(var snsTopic in _snsTopics) {
+                try {
+                    _sns.DeleteTopicAsync(snsTopic.Value).Wait();
+                } catch(Exception ex) {
+                    _logger.Log("Unable to delete: " + snsTopic);
+                }
+            }
         }
 
         private void RaiseMessage(VacuumEvents eventType, string message = "") {

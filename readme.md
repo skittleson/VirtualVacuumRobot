@@ -9,15 +9,16 @@ A simple vacuum robot to test out swarm intelligence : https://en.wikipedia.org/
 - Build & run the docker compose command: `docker-compose up --scale vvr=3 --build` .
 To tear down: `docker-compose down`.
 
-Publish some sns messages:
+Publish SNS messages to control the vacuums:
 Start cleaning: `{'action':'start'}`
 Stop cleaning: `{'action':'stop'}`
 Charge: `{'action':'charge'}`
 Clear dustbin: `{'action':'dustbin'}`
 Status: `{'action':'status'}`
 Shutdown: `{'action':'shutdown'}`
+Teardown: `{'action':'teardown'}`  Removes all SNS topics and Queues
 
-Per vacuum robot:
+Per vacuum robot by sending the id:
 Start cleaning: `{'action':'start', 'id': '1234'}`
 
 ### Prerequisites
