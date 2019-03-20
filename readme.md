@@ -24,7 +24,17 @@ services:
 
 Spin up 3 instances with: `docker-compose up --scale vvr=3`
 
-### Publish SNS json messages to control the vacuum(s):
+Now go to your AWS Console then look for Amazon SNS.
+
+## How it Works
+
+The docker container will create a sns topics it will publish too and will only have 1 sns topic to control all containers.
+
+![Workflow](workflow.png)
+
+### Publish SNS json messages to control the vacuum(s)
+
+Publish to sns topic `VirtualVacuumRobot` to control all containers.
 
 - Start cleaning: `{'action':'start'}`
 - Stop cleaning: `{'action':'stop'}`
@@ -32,18 +42,16 @@ Spin up 3 instances with: `docker-compose up --scale vvr=3`
 - Clear dustbin: `{'action':'dustbin'}`
 - Status: `{'action':'status'}`
 - Shutdown: `{'action':'shutdown'}`
-- Teardown: `{'action':'teardown'}` Removes all SNS topics and Queues for virtual vacuums
+- Teardown: `{'action':'teardown'}` Removes all SNS topics and Queues for virtual vacuums robot containers
 
 Control a single vacuum by sending the id:
 Start cleaning: `{'action':'start', 'id': '1234'}`
 
 Receive messages on SNS topics:
 
-- VirtualVacuumRobot_DUSTBIN_FULL
-- VirtualVacuumRobot_General
-- VirtualVacuumRobot_STUCK
-
-![Workflow](workflow.png)
+- `VirtualVacuumRobot_DUSTBIN_FULL`
+- `VirtualVacuumRobot_General`
+- `VirtualVacuumRobot_STUCK`
 
 ## Development
 
